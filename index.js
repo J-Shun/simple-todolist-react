@@ -13,14 +13,16 @@ const Banner = () => {
 };
 
 const List = () => {
-  const [lists, setLists] = useState([]);
+  const [originalList, setOriginalList] = useState([]);
+  const [targetList, setTargetList] = useState([]);
   const [category, setCategory] = useState("全部");
 
   const fetchList = async () => {
     try {
       const rawData = await fetch(url);
       const listData = await rawData.json();
-      setLists(listData);
+      setOriginalList(listData);
+      setTargetList(listData.slice());
     } catch (err) {
       console.log(err);
     }
@@ -32,22 +34,54 @@ const List = () => {
 
   return (
     <div className="px-5">
-      <Category category={category} setCategory={setCategory} />
+      <Category
+        category={category}
+        setCategory={setCategory}
+        originalList={originalList}
+        setTargetList={setTargetList}
+      />
       <p className="my-3 text-md">Tasks</p>
       <ul className="h-64 overflow-auto">
-        {lists.length < 1 && <Empty />}
-        {lists.map((list) => {
-          return <Task key={list.id} list={list} setList={setLists} />;
+        {targetList.length < 1 && <Empty />}
+        {targetList.map((target) => {
+          return (
+            <Task
+              key={target.id}
+              target={target}
+              targetList={targetList}
+              setTargetList={setTargetList}
+              originalList={originalList}
+              setOriginalList={setOriginalList}
+              category={category}
+            />
+          );
         })}
       </ul>
-      <Add lists={lists} setLists={setLists} />
+      <Add
+        originalList={originalList}
+        setOriginalList={setOriginalList}
+        targetList={targetList}
+        setTargetList={setTargetList}
+        category={category}
+      />
     </div>
   );
 };
 
-const Category = ({ category, setCategory }) => {
+const Category = ({ category, setCategory, originalList, setTargetList }) => {
   const changeCategory = (e) => {
-    setCategory(e.target.textContent);
+    const position = e.target.textContent;
+    setCategory(position);
+    const copyList = originalList.slice();
+    if (position === "全部") {
+      setTargetList(copyList);
+    } else if (position === "重要") {
+      const markedList = copyList.filter((data) => data.mark === true);
+      setTargetList(markedList);
+    } else if (position === "未完") {
+      const uncheckedList = copyList.filter((data) => data.checked !== true);
+      setTargetList(uncheckedList);
+    }
   };
   return (
     <ul className="flex justify-center gap-5 py-2">
@@ -87,14 +121,21 @@ const Empty = () => {
   );
 };
 
-const Task = ({ list, setList }) => {
-  const { content, id } = list;
+const Task = ({
+  target,
+  setTargetList,
+  originalList,
+  setOriginalList,
+  targetList,
+  category,
+}) => {
+  const { content, id } = target;
   const [isEditing, setIsEditing] = useState(false);
   const [newContent, setNewContent] = useState({ content: content });
   const input = useRef(null);
 
   const check = async () => {
-    const todo = { ...list, checked: !list.checked };
+    const todo = { ...target, checked: !target.checked };
     const rawData = await fetch(url + id, {
       method: "PATCH",
       headers: {
@@ -103,22 +144,37 @@ const Task = ({ list, setList }) => {
       body: JSON.stringify(todo),
     });
     const checkData = await rawData.json();
-    setList((prevList) => {
-      prevList.splice(prevList.indexOf(list), 1, checkData);
+    setOriginalList((prevList) => {
+      prevList.splice(prevList.indexOf(target), 1, checkData);
       return [...prevList];
     });
+    if (category === "未完" && todo.checked === true) {
+      setTargetList((prevList) => {
+        prevList.splice(prevList.indexOf(target), 1);
+        return [...prevList];
+      });
+    } else {
+      setTargetList((prevList) => {
+        prevList.splice(prevList.indexOf(target), 1, checkData);
+        return [...prevList];
+      });
+    }
   };
 
   const deleteTask = async () => {
     const deleteData = await fetch(url + id, { method: "DELETE" });
-    setList((prevList) => {
-      prevList.splice(prevList.indexOf(list), 1);
+    setOriginalList((prevList) => {
+      prevList.splice(prevList.indexOf(target), 1);
+      return [...prevList];
+    });
+    setTargetList((prevList) => {
+      prevList.splice(prevList.indexOf(target), 1);
       return [...prevList];
     });
   };
 
   const mark = async () => {
-    const todo = { ...list, mark: !list.mark };
+    const todo = { ...target, mark: !target.mark };
     const rawData = await fetch(url + id, {
       method: "PATCH",
       headers: {
@@ -127,10 +183,21 @@ const Task = ({ list, setList }) => {
       body: JSON.stringify(todo),
     });
     const markData = await rawData.json();
-    setList((prevList) => {
-      prevList.splice(prevList.indexOf(list), 1, markData);
+    setOriginalList((prevList) => {
+      prevList.splice(prevList.indexOf(target), 1, markData);
       return [...prevList];
     });
+    if (category === "重要" && todo.mark === false) {
+      setTargetList((prevList) => {
+        prevList.splice(prevList.indexOf(target), 1);
+        return [...prevList];
+      });
+    } else {
+      setTargetList((prevList) => {
+        prevList.splice(prevList.indexOf(target), 1, markData);
+        return [...prevList];
+      });
+    }
   };
 
   const addEdit = async () => {
@@ -148,7 +215,7 @@ const Task = ({ list, setList }) => {
       input.current.focus();
       return;
     }
-    const todo = { ...list, content: newContent.content };
+    const todo = { ...target, content: newContent.content };
     const rawData = await fetch(url + id, {
       method: "PATCH",
       headers: {
@@ -157,8 +224,12 @@ const Task = ({ list, setList }) => {
       body: JSON.stringify(todo),
     });
     const contentData = await rawData.json();
-    setList((prevList) => {
-      prevList.splice(prevList.indexOf(list), 1, contentData);
+    setOriginalList((prevList) => {
+      prevList.splice(prevList.indexOf(target), 1, contentData);
+      return [...prevList];
+    });
+    setTargetList((prevList) => {
+      prevList.splice(prevList.indexOf(target), 1, contentData);
       return [...prevList];
     });
     setIsEditing(false);
@@ -181,7 +252,7 @@ const Task = ({ list, setList }) => {
       ) : (
         <p
           className={`flex-1 cursor-pointer ${
-            list.checked &&
+            target.checked &&
             "line-through decoration-red-500 decoration-2 text-gray-400"
           }`}
           onClick={check}
@@ -196,7 +267,7 @@ const Task = ({ list, setList }) => {
         ></i>
         <i
           className={`fa-solid fa-star cursor-pointer hover:text-yellow-500 ${
-            list.mark && "text-yellow-500"
+            target.mark && "text-yellow-500"
           }`}
           onClick={mark}
         ></i>
@@ -216,7 +287,13 @@ const Task = ({ list, setList }) => {
   );
 };
 
-const Add = ({ lists, setLists }) => {
+const Add = ({
+  originalList,
+  setOriginalList,
+  targetList,
+  setTargetList,
+  category,
+}) => {
   const [todo, setTodo] = useState({ content: "" });
   const handleClick = async () => {
     try {
@@ -229,7 +306,10 @@ const Add = ({ lists, setLists }) => {
         body: JSON.stringify(todo),
       });
       const response = await postData.json();
-      setLists([...lists, response]);
+      setOriginalList([...originalList, response]);
+      if (category !== "重要") {
+        setTargetList([...targetList, response]);
+      }
       setTodo({ content: "" });
     } catch (err) {
       console.log(err);
