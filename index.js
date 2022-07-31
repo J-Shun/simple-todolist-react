@@ -341,7 +341,7 @@ const Add = ({
 };
 
 root.render(
-  <div className="max-w-lg mx-auto bg-white rounded-lg overflow-hidden drop-shadow-lg">
+  <div className="max-w-lg mx-auto bg-white rounded-lg overflow-hidden drop-shadow-lg mt-8">
     <Banner />
     <List />
   </div>
